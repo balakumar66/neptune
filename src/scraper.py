@@ -15,6 +15,14 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass
+class PageMeta:
+    """Represents metadata extracted from a webpage."""
+    page_title: str
+    meta_description: str
+    canonical_url: str
+
+
+@dataclass
 class Section:
     """Represents a section extracted from a webpage."""
     url: str
@@ -22,6 +30,9 @@ class Section:
     section_level: str
     content: str
     category: Optional[str] = None
+    page_title: Optional[str] = None
+    meta_description: Optional[str] = None
+    canonical_url: Optional[str] = None
 
 
 class WebScraper:
@@ -69,6 +80,47 @@ class WebScraper:
             logger.error(f"Failed to fetch {url}: {e}")
             return None
     
+    def extract_page_meta(self, soup: BeautifulSoup, url: str) -> PageMeta:
+        """
+        Extract page metadata (title, description, canonical URL).
+        
+        Args:
+            soup: BeautifulSoup object of the page
+            url: The page URL (fallback for canonical)
+            
+        Returns:
+            PageMeta object with extracted metadata
+        """
+        # Extract page title
+        page_title = ""
+        title_tag = soup.find('title')
+        if title_tag:
+            page_title = title_tag.get_text(strip=True)
+        
+        # Extract meta description
+        meta_description = ""
+        meta_desc_tag = soup.find('meta', attrs={'name': 'description'})
+        if meta_desc_tag:
+            meta_description = meta_desc_tag.get('content', '')
+        
+        # Try og:description as fallback
+        if not meta_description:
+            og_desc_tag = soup.find('meta', attrs={'property': 'og:description'})
+            if og_desc_tag:
+                meta_description = og_desc_tag.get('content', '')
+        
+        # Extract canonical URL
+        canonical_url = url
+        canonical_tag = soup.find('link', attrs={'rel': 'canonical'})
+        if canonical_tag:
+            canonical_url = canonical_tag.get('href', url)
+        
+        return PageMeta(
+            page_title=page_title,
+            meta_description=meta_description,
+            canonical_url=canonical_url
+        )
+
     def _get_section_content(self, heading, soup, all_headings) -> str:
         """
         Extract all content belonging to a heading section, including nested elements.
@@ -199,6 +251,9 @@ class WebScraper:
         """
         soup = BeautifulSoup(html, 'lxml')
         
+        # Extract page metadata first (before removing elements)
+        page_meta = self.extract_page_meta(soup, url)
+        
         # Remove script, style, nav, footer, header elements
         for element in soup.find_all(['script', 'style', 'noscript']):
             element.decompose()
@@ -236,7 +291,10 @@ class WebScraper:
                     url=url,
                     section_title=title,
                     section_level=level,
-                    content=content[:5000]  # Limit content length
+                    content=content[:5000],  # Limit content length
+                    page_title=page_meta.page_title,
+                    meta_description=page_meta.meta_description,
+                    canonical_url=page_meta.canonical_url
                 ))
         
         # If no headings found, try to extract main content
@@ -249,7 +307,10 @@ class WebScraper:
                         url=url,
                         section_title="Main Content",
                         section_level="body",
-                        content=text[:5000]
+                        content=text[:5000],
+                        page_title=page_meta.page_title,
+                        meta_description=page_meta.meta_description,
+                        canonical_url=page_meta.canonical_url
                     ))
         
         return sections

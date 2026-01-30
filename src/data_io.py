@@ -23,6 +23,21 @@ def read_urls_from_csv(filepath: str, url_column: str = 'url') -> List[str]:
     Returns:
         List of URL strings
     """
+    urls, _ = read_urls_with_metadata(filepath, url_column)
+    return urls
+
+
+def read_urls_with_metadata(filepath: str, url_column: str = 'url') -> tuple:
+    """
+    Read URLs from a CSV file along with any additional metadata columns.
+    
+    Args:
+        filepath: Path to the CSV file
+        url_column: Name of the column containing URLs
+        
+    Returns:
+        Tuple of (List of URL strings, Dict mapping URL to metadata dict)
+    """
     try:
         df = pd.read_csv(filepath)
         
@@ -42,40 +57,75 @@ def read_urls_from_csv(filepath: str, url_column: str = 'url') -> List[str]:
             actual_column = df.columns[0]
             logger.warning(f"URL column not found, using first column: {actual_column}")
         
+        # Build metadata dictionary (all columns except the URL column)
+        url_metadata = {}
+        other_columns = [col for col in df.columns if col != actual_column]
+        
+        for _, row in df.iterrows():
+            url = str(row[actual_column]).strip()
+            if url:
+                metadata = {col: row[col] for col in other_columns}
+                url_metadata[url] = metadata
+        
         urls = df[actual_column].dropna().astype(str).tolist()
         
         # Clean URLs
         urls = [url.strip() for url in urls if url.strip()]
         
         logger.info(f"Read {len(urls)} URLs from {filepath}")
-        return urls
+        return urls, url_metadata
         
     except Exception as e:
         logger.error(f"Failed to read CSV: {e}")
         raise
 
 
-def sections_to_dataframe(sections: List[Section]) -> pd.DataFrame:
+def sections_to_dataframe(sections: List[Section], url_metadata: dict = None) -> pd.DataFrame:
     """
     Convert a list of Section objects to a DataFrame.
     
     Args:
         sections: List of Section objects
+        url_metadata: Optional dict mapping URL to metadata dict from input CSV
         
     Returns:
         DataFrame with section data
     """
     data = []
     for section in sections:
-        data.append({
+        row = {
             'url': section.url,
+            'page_title': getattr(section, 'page_title', '') or '',
+            'meta_description': getattr(section, 'meta_description', '') or '',
+            'canonical_url': getattr(section, 'canonical_url', '') or '',
             'section_title': section.section_title,
             'section_level': section.section_level,
             'content': section.content,
-            'category': section.category or ''
-        })
+            'ai_category': section.category or ''
+        }
+        
+        # Add metadata from original CSV if available
+        if url_metadata and section.url in url_metadata:
+            for key, value in url_metadata[section.url].items():
+                # Prefix with 'source_' to distinguish from extracted data
+                row[f'source_{key.lower().replace(" ", "_")}'] = value
+        
+        data.append(row)
     
-    return pd.DataFrame(data)
+    df = pd.DataFrame(data)
+    
+    # Reorder columns: url, source columns, meta columns, section data
+    if url_metadata:
+        source_cols = [col for col in df.columns if col.startswith('source_')]
+        meta_cols = ['page_title', 'meta_description', 'canonical_url']
+        section_cols = ['section_title', 'section_level', 'content', 'ai_category']
+        df = df[['url'] + source_cols + meta_cols + section_cols]
+    else:
+        meta_cols = ['page_title', 'meta_description', 'canonical_url']
+        section_cols = ['section_title', 'section_level', 'content', 'ai_category']
+        df = df[['url'] + meta_cols + section_cols]
+    
+    return df
 
 
 def write_output(df: pd.DataFrame, filepath: str) -> None:

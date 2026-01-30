@@ -12,7 +12,8 @@ import logging
 
 from scraper import WebScraper
 from categorizer import AICategorizer
-from data_io import read_urls_from_csv, sections_to_dataframe, write_output, create_summary_report
+from data_io import read_urls_from_csv, read_urls_with_metadata, sections_to_dataframe, write_output, create_summary_report
+from cleaner import filter_dataframe, get_filter_summary
 
 logging.basicConfig(
     level=logging.INFO,
@@ -77,6 +78,12 @@ Examples:
         help='Request timeout in seconds (default: 30)'
     )
     
+    parser.add_argument(
+        '--no-filter',
+        action='store_true',
+        help='Disable data cleaning and filtering (keeps all scraped data)'
+    )
+    
     args = parser.parse_args()
     
     # Validate input file
@@ -85,9 +92,9 @@ Examples:
         logger.error(f"Input file not found: {args.input}")
         sys.exit(1)
     
-    # Read URLs
+    # Read URLs with metadata
     try:
-        urls = read_urls_from_csv(args.input, args.url_column)
+        urls, url_metadata = read_urls_with_metadata(args.input, args.url_column)
     except Exception as e:
         logger.error(f"Failed to read input file: {e}")
         sys.exit(1)
@@ -96,12 +103,21 @@ Examples:
         logger.error("No URLs found in input file")
         sys.exit(1)
     
+    # Show metadata columns found
+    metadata_cols = []
+    if url_metadata and urls:
+        first_url = urls[0]
+        if first_url in url_metadata:
+            metadata_cols = list(url_metadata[first_url].keys())
+    
     print(f"\n{'='*60}")
     print(f"Neptune - Website Content Extractor")
     print(f"{'='*60}")
     print(f"Input file: {args.input}")
     print(f"Output file: {args.output}")
     print(f"URLs to process: {len(urls)}")
+    if metadata_cols:
+        print(f"Source metadata columns: {', '.join(metadata_cols)}")
     print(f"AI categorization: {'Enabled' if args.categorize else 'Disabled'}")
     print(f"{'='*60}\n")
     
@@ -127,8 +143,17 @@ Examples:
         sections = categorizer.categorize_sections(sections)
         print("Categorization complete\n")
     
-    # Convert to DataFrame
-    df = sections_to_dataframe(sections)
+    # Convert to DataFrame with source metadata
+    df = sections_to_dataframe(sections, url_metadata)
+    original_count = len(df)
+    
+    # Apply data cleaning and filtering (unless disabled)
+    if not args.no_filter:
+        print("Cleaning and filtering data...")
+        df = filter_dataframe(df)
+        filter_summary = get_filter_summary(original_count, len(df))
+        print(f"  Removed {filter_summary['removed_rows']} rows ({filter_summary['removal_percentage']}%)")
+        print("Filtering complete\n")
     
     # Write output
     print(f"Writing results to {args.output}...")
@@ -152,8 +177,8 @@ Examples:
     print(f"Total sections extracted: {len(sections)}")
     
     if args.categorize:
-        category_counts = df['category'].value_counts()
-        print(f"\nSections by category:")
+        category_counts = df['ai_category'].value_counts()
+        print(f"\nSections by AI category:")
         for cat, count in category_counts.items():
             print(f"  {cat}: {count}")
     
