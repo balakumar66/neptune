@@ -264,8 +264,20 @@ def main():
             st.markdown("#### 💾 Download Results")
             col1, col2 = st.columns(2)
             
+            # Prepare formatted data for export
+            export_df = df.copy()
+            
+            # Add row number as first column
+            export_df.insert(0, 'row_no', range(1, len(export_df) + 1))
+            
+            # Clean content field - replace internal newlines with separator
+            if 'content' in export_df.columns:
+                export_df['content'] = export_df['content'].apply(
+                    lambda x: str(x).replace('\n', ' ||| ').strip() if pd.notna(x) else ''
+                )
+            
             with col1:
-                csv_data = df.to_csv(index=False)
+                csv_data = export_df.to_csv(index=False)
                 st.download_button(
                     label="📥 Download CSV",
                     data=csv_data,
@@ -275,9 +287,52 @@ def main():
                 )
             
             with col2:
-                # Excel download
+                # Excel download with enhanced formatting
                 excel_buffer = BytesIO()
-                df.to_excel(excel_buffer, index=False, engine='openpyxl')
+                with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
+                    export_df.to_excel(writer, index=False, sheet_name='Sections')
+                    
+                    # Get workbook and worksheet for formatting
+                    workbook = writer.book
+                    worksheet = writer.sheets['Sections']
+                    
+                    from openpyxl.styles import PatternFill, Border, Side, Font, Alignment
+                    
+                    # Header styling
+                    header_fill = PatternFill(start_color='4472C4', end_color='4472C4', fill_type='solid')
+                    header_font = Font(bold=True, color='FFFFFF')
+                    
+                    for cell in worksheet[1]:
+                        cell.fill = header_fill
+                        cell.font = header_font
+                    
+                    # Add borders and track URL changes for grouping
+                    thin_border = Border(
+                        bottom=Side(style='thin', color='CCCCCC')
+                    )
+                    thick_border = Border(
+                        top=Side(style='medium', color='4472C4')
+                    )
+                    
+                    url_col_idx = list(export_df.columns).index('url') if 'url' in export_df.columns else 1
+                    prev_url = None
+                    
+                    for row_idx in range(2, len(export_df) + 2):
+                        current_url = export_df.iloc[row_idx - 2]['url'] if row_idx - 2 < len(export_df) else None
+                        
+                        # Add thick blue border when URL changes (new page group)
+                        if prev_url and current_url != prev_url:
+                            for cell in worksheet[row_idx]:
+                                cell.border = thick_border
+                        
+                        prev_url = current_url
+                    
+                    # Freeze header row
+                    worksheet.freeze_panes = 'A2'
+                    
+                    # Auto-filter on all columns
+                    worksheet.auto_filter.ref = worksheet.dimensions
+                
                 excel_data = excel_buffer.getvalue()
                 st.download_button(
                     label="📥 Download Excel",

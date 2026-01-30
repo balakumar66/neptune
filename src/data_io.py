@@ -128,22 +128,83 @@ def sections_to_dataframe(sections: List[Section], url_metadata: dict = None) ->
     return df
 
 
-def write_output(df: pd.DataFrame, filepath: str) -> None:
+def write_output(df: pd.DataFrame, filepath: str, add_separator: bool = True) -> None:
     """
     Write DataFrame to CSV or Excel based on file extension.
     
     Args:
         df: DataFrame to write
         filepath: Output file path (.csv or .xlsx)
+        add_separator: If True, add row index and visual separator between records
     """
     path = Path(filepath)
     
-    if path.suffix.lower() == '.xlsx':
-        df.to_excel(filepath, index=False, engine='openpyxl')
-    else:
-        df.to_csv(filepath, index=False)
+    # Create a copy to avoid modifying original
+    output_df = df.copy()
     
-    logger.info(f"Wrote {len(df)} rows to {filepath}")
+    if add_separator:
+        # Add row number as first column for easy reference
+        output_df.insert(0, 'row_no', range(1, len(output_df) + 1))
+        
+        # Add separator line between content from different URLs
+        # Clean up content field - replace internal newlines with a marker
+        if 'content' in output_df.columns:
+            output_df['content'] = output_df['content'].apply(
+                lambda x: str(x).replace('\n', ' | ').strip() if pd.notna(x) else ''
+            )
+    
+    if path.suffix.lower() == '.xlsx':
+        # For Excel, add formatting
+        with pd.ExcelWriter(filepath, engine='openpyxl') as writer:
+            output_df.to_excel(writer, index=False, sheet_name='Sections')
+            
+            # Get workbook and worksheet
+            workbook = writer.book
+            worksheet = writer.sheets['Sections']
+            
+            # Auto-adjust column widths (approximate)
+            for idx, col in enumerate(output_df.columns):
+                max_length = max(
+                    output_df[col].astype(str).map(len).max(),
+                    len(col)
+                )
+                # Cap at 50 for content columns, 30 for others
+                if col in ['content', 'meta_description']:
+                    max_length = min(max_length, 80)
+                else:
+                    max_length = min(max_length, 40)
+                worksheet.column_dimensions[chr(65 + idx) if idx < 26 else 'A'].width = max_length + 2
+            
+            # Add alternating row colors and borders for readability
+            from openpyxl.styles import PatternFill, Border, Side
+            
+            light_fill = PatternFill(start_color='F0F0F0', end_color='F0F0F0', fill_type='solid')
+            thin_border = Border(
+                bottom=Side(style='thin', color='CCCCCC')
+            )
+            
+            # Track URL changes for visual grouping
+            prev_url = None
+            for row_idx, row in enumerate(worksheet.iter_rows(min_row=2, max_row=len(output_df) + 1), start=2):
+                # Get URL from the row (column index depends on structure)
+                url_col_idx = list(output_df.columns).index('url') if 'url' in output_df.columns else 1
+                current_url = output_df.iloc[row_idx - 2]['url'] if row_idx - 2 < len(output_df) else None
+                
+                # Add thick border when URL changes (new page)
+                if prev_url and current_url != prev_url:
+                    thick_border = Border(
+                        top=Side(style='medium', color='4472C4')
+                    )
+                    for cell in row:
+                        cell.border = thick_border
+                
+                prev_url = current_url
+                
+    else:
+        # For CSV, add separator markers
+        output_df.to_csv(filepath, index=False)
+    
+    logger.info(f"Wrote {len(output_df)} rows to {filepath}")
 
 
 def create_summary_report(df: pd.DataFrame) -> pd.DataFrame:
