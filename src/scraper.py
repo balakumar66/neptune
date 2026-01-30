@@ -172,6 +172,62 @@ class WebScraper:
                 if text:
                     content_parts.append(text)
         
+        # Strategy 1b: Look for content in parent's siblings (common in grid layouts)
+        # Where heading is in one column and content in another
+        if not content_parts and parent:
+            grandparent = parent.parent
+            if grandparent:
+                # Check siblings of the heading's parent
+                for parent_sibling in parent.find_next_siblings():
+                    # Stop if we hit the next boundary heading
+                    if next_boundary:
+                        if parent_sibling == next_boundary:
+                            break
+                        if hasattr(parent_sibling, 'descendants') and next_boundary in parent_sibling.descendants:
+                            break
+                    # Stop if this sibling contains a heading of same/higher level
+                    if hasattr(parent_sibling, 'find_all'):
+                        sibling_headings = parent_sibling.find_all(self.HEADING_TAGS)
+                        has_boundary = False
+                        for sh in sibling_headings:
+                            sh_level = int(sh.name[1])
+                            if sh_level <= heading_level:
+                                has_boundary = True
+                                break
+                        if has_boundary:
+                            break
+                    
+                    text = parent_sibling.get_text(separator=' ', strip=True)
+                    if text:
+                        content_parts.append(text)
+            
+            # Strategy 1c: Also check grandparent's siblings for row-based layouts
+            if not content_parts and grandparent:
+                great_grandparent = grandparent.parent
+                if great_grandparent:
+                    for gp_sibling in grandparent.find_next_siblings():
+                        # Stop if we hit the next boundary heading
+                        if next_boundary:
+                            if gp_sibling == next_boundary:
+                                break
+                            if hasattr(gp_sibling, 'descendants') and next_boundary in gp_sibling.descendants:
+                                break
+                        # Stop if this sibling contains a heading of same/higher level
+                        if hasattr(gp_sibling, 'find_all'):
+                            sibling_headings = gp_sibling.find_all(self.HEADING_TAGS)
+                            has_boundary = False
+                            for sh in sibling_headings:
+                                sh_level = int(sh.name[1])
+                                if sh_level <= heading_level:
+                                    has_boundary = True
+                                    break
+                            if has_boundary:
+                                break
+                        
+                        text = gp_sibling.get_text(separator=' ', strip=True)
+                        if text:
+                            content_parts.append(text)
+        
         # Strategy 2: If no content found via siblings, use next_elements iterator
         if not content_parts:
             for element in heading.next_elements:
