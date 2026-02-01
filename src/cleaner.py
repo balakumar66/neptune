@@ -320,6 +320,24 @@ def filter_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     df = df[mask]
     logger.info(f"  Removed {before - len(df)} rows by section title filter")
     
+    # Step 3c: Filter product link sections (title equals content, common in Related Products)
+    logger.info("Filtering product link sections...")
+    before = len(df)
+    def is_product_link_section(row):
+        title = str(row.get('section_title', '')).strip().lower()
+        content = str(row.get('content', '')).strip().lower()
+        # If content is just the title (or title + "good/better/best"), it's likely a product link
+        if not title or not content:
+            return False
+        # Check if content is essentially just the title with maybe a rating word
+        content_clean = content.replace('good', '').replace('better', '').replace('best', '').replace('new', '').strip()
+        title_in_content = title in content and len(content) < len(title) * 2
+        return title_in_content or content_clean == title
+    
+    mask = ~df.apply(is_product_link_section, axis=1)
+    df = df[mask]
+    logger.info(f"  Removed {before - len(df)} rows by product link filter")
+    
     # Step 4: Filter by minimum word count
     logger.info("Filtering by minimum word count...")
     before = len(df)

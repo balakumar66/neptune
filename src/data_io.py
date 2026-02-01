@@ -96,7 +96,7 @@ def sections_to_dataframe(sections: List[Section], url_metadata: dict = None) ->
         row = {
             'url': section.url,
             'page_title': getattr(section, 'page_title', '') or '',
-            'meta_description': getattr(section, 'meta_description', '') or '',
+            'description': getattr(section, 'meta_description', '') or '',
             'canonical_url': getattr(section, 'canonical_url', '') or '',
             'section_title': section.section_title,
             'section_level': section.section_level,
@@ -117,11 +117,11 @@ def sections_to_dataframe(sections: List[Section], url_metadata: dict = None) ->
     # Reorder columns: url, source columns, meta columns, section data
     if url_metadata:
         source_cols = [col for col in df.columns if col.startswith('source_')]
-        meta_cols = ['page_title', 'meta_description', 'canonical_url']
+        meta_cols = ['page_title', 'description', 'canonical_url']
         section_cols = ['section_title', 'section_level', 'content', 'ai_category']
         df = df[['url'] + source_cols + meta_cols + section_cols]
     else:
-        meta_cols = ['page_title', 'meta_description', 'canonical_url']
+        meta_cols = ['page_title', 'description', 'canonical_url']
         section_cols = ['section_title', 'section_level', 'content', 'ai_category']
         df = df[['url'] + meta_cols + section_cols]
     
@@ -169,7 +169,7 @@ def write_output(df: pd.DataFrame, filepath: str, add_separator: bool = True) ->
                     len(col)
                 )
                 # Cap at 50 for content columns, 30 for others
-                if col in ['content', 'meta_description']:
+                if col in ['content', 'description']:
                     max_length = min(max_length, 80)
                 else:
                     max_length = min(max_length, 40)
