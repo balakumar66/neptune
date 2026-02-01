@@ -39,6 +39,34 @@ BOILERPLATE_KEYWORDS = [
     "designed by"
 ]
 
+# Section titles to exclude (e-commerce and common boilerplate sections)
+EXCLUDED_SECTION_TITLES = [
+    "related products",
+    "you may also like",
+    "customers also bought",
+    "similar products",
+    "recently viewed",
+    "recommended for you",
+    "people also viewed",
+    "best sellers",
+    "top rated",
+    "featured products",
+    "more from this category",
+    "compare products",
+    "add to cart",
+    "add to wishlist",
+    "share this",
+    "follow us",
+    "social media",
+    "get in touch",
+    "important links",
+    "quick links",
+    "useful links",
+    "footer",
+    "site map",
+    "sitemap",
+]
+
 # Common boilerplate phrases to strip from content
 BOILERPLATE_PHRASES = [
     r"Loading\.\.\.",
@@ -128,6 +156,28 @@ def contains_boilerplate_keywords(title: str, content: str) -> bool:
     
     for keyword in BOILERPLATE_KEYWORDS:
         if keyword in combined_text:
+            return True
+    
+    return False
+
+
+def is_excluded_section_title(title: str) -> bool:
+    """
+    Check if section title matches excluded patterns (e.g., Related Products).
+    
+    Args:
+        title: Section title to check
+        
+    Returns:
+        True if title should be excluded
+    """
+    if not title:
+        return False
+    
+    title_lower = title.lower().strip()
+    
+    for excluded in EXCLUDED_SECTION_TITLES:
+        if excluded in title_lower:
             return True
     
     return False
@@ -239,6 +289,13 @@ def filter_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     )
     df = df[mask]
     logger.info(f"  Removed {before - len(df)} rows by keyword filter")
+    
+    # Step 3b: Filter by excluded section titles (Related Products, etc.)
+    logger.info("Filtering excluded section titles...")
+    before = len(df)
+    mask = ~df['section_title'].apply(is_excluded_section_title)
+    df = df[mask]
+    logger.info(f"  Removed {before - len(df)} rows by section title filter")
     
     # Step 4: Filter by minimum word count
     logger.info("Filtering by minimum word count...")
