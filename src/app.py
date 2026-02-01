@@ -22,33 +22,81 @@ from categorizer import AICategorizer
 from cleaner import filter_dataframe, get_filter_summary
 
 
+# Custom CSS for professional styling
+CUSTOM_CSS = """
+<style>
+    /* Main container */
+    .main .block-container {
+        padding-top: 2rem;
+        padding-bottom: 2rem;
+    }
+    
+    /* Centered header */
+    .header-container {
+        text-align: center;
+        padding: 1rem 0;
+    }
+    .header-container h1 {
+        margin-bottom: 0.25rem;
+    }
+    .header-container p {
+        color: #666;
+        font-size: 1.1rem;
+    }
+    
+    /* Metric cards */
+    [data-testid="stMetricValue"] {
+        font-size: 1.8rem;
+        color: #1e3a5f;
+    }
+    
+    /* Footer */
+    .footer {
+        text-align: center;
+        color: #6c757d;
+        padding: 1rem;
+        font-size: 0.85rem;
+    }
+    
+    /* Hide Streamlit branding */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    
+    /* Hide deploy button */
+    .stDeployButton {display: none;}
+    [data-testid="stToolbar"] {display: none;}
+</style>
+"""
+
+# JavaScript to scroll to results
+SCROLL_TO_RESULTS = """
+<script>
+    window.scrollTo({top: document.body.scrollHeight, behavior: 'smooth'});
+</script>
+"""
+
+
 def is_valid_url(url: str) -> bool:
     """Validate URL format."""
-    # Clean the URL
     url = url.strip()
     if not url:
         return False
     
-    # Add scheme if missing
     if not url.startswith(('http://', 'https://')):
         url = 'https://' + url
     
-    # Parse and validate
     try:
         result = urlparse(url)
-        # Must have scheme and netloc (domain)
         if not all([result.scheme, result.netloc]):
             return False
-        # Domain must have at least one dot (e.g., example.com)
         if '.' not in result.netloc:
             return False
-        # Check for valid characters in domain
         domain_pattern = re.compile(
             r'^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?'
             r'(\.[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?)*'
             r'\.[a-zA-Z]{2,}$'
         )
-        domain = result.netloc.split(':')[0]  # Remove port if present
+        domain = result.netloc.split(':')[0]
         if not domain_pattern.match(domain):
             return False
         return True
@@ -81,43 +129,81 @@ def sections_to_dataframe(sections: list) -> pd.DataFrame:
     return pd.DataFrame(data)
 
 
+def init_session_state():
+    """Initialize all session state variables."""
+    defaults = {
+        'results_df': None,
+        'original_count': 0,
+        'urls_processed': 0,
+        'enable_filtering': True,
+        'extraction_complete': False,
+        'url_input': ''
+    }
+    for key, value in defaults.items():
+        if key not in st.session_state:
+            st.session_state[key] = value
+
+
+def clear_results():
+    """Clear all results from session state."""
+    st.session_state.results_df = None
+    st.session_state.original_count = 0
+    st.session_state.urls_processed = 0
+    st.session_state.extraction_complete = False
+
+
 def main():
     st.set_page_config(
         page_title="Neptune - Website Content Extractor",
         page_icon="🌊",
-        layout="wide"
+        layout="wide",
+        initial_sidebar_state="collapsed"
     )
     
-    st.title("🌊 Neptune")
-    st.subheader("Website Content Extractor")
-    st.markdown("Extract section titles and content from websites with AI-powered categorization.")
+    # Apply custom CSS
+    st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
+    
+    # Initialize session state
+    init_session_state()
+    
+    # Header (centered)
+    st.markdown(
+        """
+        <div class='header-container'>
+            <h1>🌊 Neptune</h1>
+            <p>Extract and categorize website content with AI</p>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+    
+    # Clear button (right-aligned)
+    if st.session_state.results_df is not None:
+        col1, col2, col3 = st.columns([5, 1, 5])
+        with col2:
+            if st.button("🗑️ Clear", help="Clear results and start over", use_container_width=True):
+                clear_results()
+                st.rerun()
     
     st.divider()
     
-    # URL Input Section
-    st.markdown("### 📝 Enter URLs")
-    st.markdown("Enter one URL per line. URLs will be validated before processing.")
-    
+    # URL input section
+    st.markdown("#### 📝 Enter URLs")
     url_input = st.text_area(
         "URLs to scrape",
-        height=200,
-        placeholder="https://example.com\nhttps://another-site.com/page\nhttps://website.com/products",
-        help="Enter one URL per line. The tool will extract all section headings and content from each page."
+        value=st.session_state.url_input,
+        height=150,
+        placeholder="https://example.com\nhttps://another-site.com/page",
+        help="Enter one URL per line",
+        label_visibility="collapsed"
     )
+    st.session_state.url_input = url_input
     
-    # Options
-    enable_ai = True  # Always enabled
-    delay = 1.0  # Default delay
-    
-    enable_filtering = st.checkbox(
-        "Enable Data Cleaning & Filtering",
-        value=True,
-        help="Remove boilerplate, low-value content, and optimize for AI analysis"
-    )
+    # Filtering is always enabled
+    enable_filtering = True
     
     # Parse and validate URLs
     urls_raw = [line.strip() for line in url_input.strip().split('\n') if line.strip()]
-    
     valid_urls = []
     invalid_urls = []
     
@@ -127,135 +213,150 @@ def main():
         else:
             invalid_urls.append(url)
     
-    # Show validation status
+    # URL validation feedback (compact)
     if urls_raw:
-        st.markdown("### ✅ URL Validation")
-        col1, col2 = st.columns(2)
+        col1, col2, col3 = st.columns([1, 1, 4])
         with col1:
-            st.metric("Valid URLs", len(valid_urls))
+            if valid_urls:
+                st.success(f"✓ {len(valid_urls)} valid")
         with col2:
-            st.metric("Invalid URLs", len(invalid_urls))
-        
-        if invalid_urls:
-            with st.expander(f"⚠️ {len(invalid_urls)} Invalid URLs (click to see)", expanded=False):
-                for url in invalid_urls:
-                    st.error(f"❌ `{url}`")
+            if invalid_urls:
+                st.error(f"✗ {len(invalid_urls)} invalid")
+        with col3:
+            if invalid_urls:
+                with st.expander("Show invalid URLs"):
+                    for url in invalid_urls:
+                        st.code(url, language=None)
     
     # Submit button
-    st.divider()
-    submit_disabled = len(valid_urls) == 0
+    st.markdown("")  # Spacing
+    col_btn, col_space = st.columns([1, 3])
+    with col_btn:
+        submit_clicked = st.button(
+            "🚀 Extract Content",
+            type="primary",
+            disabled=len(valid_urls) == 0,
+            use_container_width=True
+        )
     
-    if st.button("🚀 Start Extraction", type="primary", disabled=submit_disabled, use_container_width=True):
-        if not valid_urls:
-            st.error("Please enter at least one valid URL")
-            return
+    # Processing
+    if submit_clicked and valid_urls:
+        # Clear previous results
+        clear_results()
         
         # Initialize components
-        scraper = WebScraper(timeout=30, delay=delay)
-        categorizer = AICategorizer() if enable_ai else None
-        
+        scraper = WebScraper(timeout=30, delay=1.0)
+        categorizer = AICategorizer()
         all_sections = []
         
-        # Progress tracking
-        st.markdown("### 📊 Progress")
-        progress_bar = st.progress(0)
-        status_text = st.empty()
-        current_url_text = st.empty()
+        # Progress container
+        st.markdown("---")
+        progress_container = st.container()
         
-        # Scraping phase
-        status_text.markdown("**Phase 1/2:** Extracting content from websites...")
-        
-        for i, url in enumerate(valid_urls):
-            current_url_text.markdown(f"🔍 Scraping: `{url}`")
-            progress = (i + 1) / len(valid_urls) * 0.7  # 70% for scraping
-            progress_bar.progress(progress)
+        with progress_container:
+            progress_bar = st.progress(0)
+            status_text = st.empty()
             
-            try:
-                sections = scraper.scrape_url(url)
-                all_sections.extend(sections)
-            except Exception as e:
-                st.warning(f"Failed to scrape {url}: {str(e)}")
+            # Phase 1: Scraping
+            status_text.info("🔍 **Phase 1/3:** Extracting content from websites...")
             
-            # Delay between requests (except for last one)
-            if i < len(valid_urls) - 1:
-                time.sleep(delay)
-        
-        current_url_text.empty()
-        
-        # Categorization phase
-        if enable_ai and all_sections:
-            status_text.markdown("**Phase 2/2:** AI Categorization...")
-            progress_bar.progress(0.8)
+            for i, url in enumerate(valid_urls):
+                progress = (i + 1) / len(valid_urls) * 0.5
+                progress_bar.progress(progress)
+                
+                try:
+                    sections = scraper.scrape_url(url)
+                    all_sections.extend(sections)
+                except Exception as e:
+                    st.warning(f"Failed: {url[:50]}...")
+                
+                if i < len(valid_urls) - 1:
+                    time.sleep(1.0)
             
-            if categorizer and categorizer.is_available():
-                current_url_text.markdown("🤖 Using OpenAI for intelligent categorization...")
-            else:
-                current_url_text.markdown("🔤 Using keyword-based categorization (set OPENAI_API_KEY for AI)")
+            # Phase 2: Categorization
+            status_text.info("🤖 **Phase 2/3:** AI Categorization...")
+            progress_bar.progress(0.7)
             
-            all_sections = categorizer.categorize_sections(all_sections)
-            current_url_text.empty()
-        
-        progress_bar.progress(0.9)
-        
-        # Convert to DataFrame
-        df = sections_to_dataframe(all_sections)
-        original_count = len(df)
-        
-        # Apply filtering if enabled
-        if enable_filtering:
-            status_text.markdown("**Phase 3/3:** Cleaning and filtering data...")
-            current_url_text.markdown("🧹 Removing boilerplate and low-value content...")
-            df = filter_dataframe(df)
-            filter_summary = get_filter_summary(original_count, len(df))
-            current_url_text.empty()
-        
-        progress_bar.progress(1.0)
-        status_text.markdown("**✅ Complete!**")
-        
-        # Results
-        st.divider()
-        st.markdown("### 📋 Results")
+            if all_sections and categorizer:
+                all_sections = categorizer.categorize_sections(all_sections)
+            
+            # Phase 3: Convert and filter
+            progress_bar.progress(0.85)
+            df = sections_to_dataframe(all_sections)
+            original_count = len(df)
+            
+            if enable_filtering and len(df) > 0:
+                status_text.info("🧹 **Phase 3/3:** Cleaning data...")
+                df = filter_dataframe(df)
+            
+            progress_bar.progress(1.0)
+            status_text.success("✅ **Extraction complete!**")
+            
+            # Store results
+            st.session_state.results_df = df
+            st.session_state.original_count = original_count
+            st.session_state.urls_processed = len(valid_urls)
+            st.session_state.extraction_complete = True
+            
+            # Auto-scroll to results
+            st.markdown(SCROLL_TO_RESULTS, unsafe_allow_html=True)
+    
+    # Results display (persisted via session state)
+    if st.session_state.results_df is not None:
+        df = st.session_state.results_df
         
         if len(df) > 0:
-            # Summary metrics
+            st.markdown("---")
+            st.markdown("### 📊 Results")
+            
+            # Metrics row
             col1, col2, col3, col4 = st.columns(4)
             with col1:
-                st.metric("URLs Processed", len(valid_urls))
+                st.metric("URLs", st.session_state.urls_processed)
             with col2:
-                st.metric("Sections Extracted", original_count)
+                st.metric("Sections Found", st.session_state.original_count)
             with col3:
-                if enable_filtering:
-                    st.metric("After Filtering", len(df))
-                else:
-                    st.metric("Total Sections", len(df))
+                st.metric("After Filtering", len(df))
             with col4:
-                unique_categories = df['ai_category'].nunique()
-                st.metric("Categories Found", unique_categories)
+                reduction = round((1 - len(df) / st.session_state.original_count) * 100) if st.session_state.original_count > 0 else 0
+                st.metric("Noise Reduced", f"{reduction}%")
             
             # Data preview
             st.markdown("#### 📄 Data Preview")
-            st.dataframe(df, use_container_width=True, height=400)
             
-            # Download buttons
-            st.markdown("#### 💾 Download Results")
-            col1, col2 = st.columns(2)
+            st.dataframe(
+                df,
+                use_container_width=True,
+                height=400,
+                column_config={
+                    "url": st.column_config.TextColumn("URL", width="medium"),
+                    "page_title": st.column_config.TextColumn("Page Title", width="medium"),
+                    "description": st.column_config.TextColumn("Description", width="medium"),
+                    "canonical_url": st.column_config.TextColumn("Canonical URL", width="small"),
+                    "section_title": st.column_config.TextColumn("Section Title", width="medium"),
+                    "section_level": st.column_config.TextColumn("Level", width="small"),
+                    "content": st.column_config.TextColumn("Content", width="large"),
+                    "ai_category": st.column_config.TextColumn("Category", width="small"),
+                }
+            )
             
-            # Prepare formatted data for export
+            # Download section
+            st.markdown("#### 💾 Download")
+            
+            # Prepare export data
             export_df = df.copy()
-            
-            # Add row number as first column
             export_df.insert(0, 'row_no', range(1, len(export_df) + 1))
-            
-            # Clean content field - replace internal newlines with separator
             if 'content' in export_df.columns:
                 export_df['content'] = export_df['content'].apply(
-                    lambda x: str(x).replace('\n', ' ||| ').strip() if pd.notna(x) else ''
+                    lambda x: str(x).replace('\n', ' ').strip() if pd.notna(x) else ''
                 )
+            
+            col1, col2, col3 = st.columns([1, 1, 2])
             
             with col1:
                 csv_data = export_df.to_csv(index=False)
                 st.download_button(
-                    label="📥 Download CSV",
+                    label="📥 CSV",
                     data=csv_data,
                     file_name="neptune_results.csv",
                     mime="text/csv",
@@ -263,18 +364,14 @@ def main():
                 )
             
             with col2:
-                # Excel download with enhanced formatting
                 excel_buffer = BytesIO()
                 with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
                     export_df.to_excel(writer, index=False, sheet_name='Sections')
-                    
-                    # Get workbook and worksheet for formatting
                     workbook = writer.book
                     worksheet = writer.sheets['Sections']
                     
-                    from openpyxl.styles import PatternFill, Border, Side, Font, Alignment
+                    from openpyxl.styles import PatternFill, Font
                     
-                    # Header styling
                     header_fill = PatternFill(start_color='4472C4', end_color='4472C4', fill_type='solid')
                     header_font = Font(bold=True, color='FFFFFF')
                     
@@ -282,50 +379,26 @@ def main():
                         cell.fill = header_fill
                         cell.font = header_font
                     
-                    # Add borders and track URL changes for grouping
-                    thin_border = Border(
-                        bottom=Side(style='thin', color='CCCCCC')
-                    )
-                    thick_border = Border(
-                        top=Side(style='medium', color='4472C4')
-                    )
-                    
-                    url_col_idx = list(export_df.columns).index('url') if 'url' in export_df.columns else 1
-                    prev_url = None
-                    
-                    for row_idx in range(2, len(export_df) + 2):
-                        current_url = export_df.iloc[row_idx - 2]['url'] if row_idx - 2 < len(export_df) else None
-                        
-                        # Add thick blue border when URL changes (new page group)
-                        if prev_url and current_url != prev_url:
-                            for cell in worksheet[row_idx]:
-                                cell.border = thick_border
-                        
-                        prev_url = current_url
-                    
-                    # Freeze header row
                     worksheet.freeze_panes = 'A2'
-                    
-                    # Auto-filter on all columns
                     worksheet.auto_filter.ref = worksheet.dimensions
                 
-                excel_data = excel_buffer.getvalue()
                 st.download_button(
-                    label="📥 Download Excel",
-                    data=excel_data,
+                    label="📥 Excel",
+                    data=excel_buffer.getvalue(),
                     file_name="neptune_results.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     use_container_width=True
                 )
-        else:
+        
+        elif st.session_state.extraction_complete:
             st.warning("No content was extracted from the provided URLs.")
     
     # Footer
-    st.divider()
+    st.markdown("---")
     st.markdown(
         """
-        <div style='text-align: center; color: #666;'>
-            <small>Neptune - Website Content Extractor | Built with Streamlit</small>
+        <div class='footer'>
+            Neptune • Website Content Extractor
         </div>
         """,
         unsafe_allow_html=True
