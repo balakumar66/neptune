@@ -2,6 +2,79 @@
 
 A web-based tool to extract section titles and content from websites, with AI-powered categorization and smart filtering.
 
+## Architecture
+
+```mermaid
+flowchart LR
+    subgraph Input
+        URL[/"URL(s)"/]
+    end
+
+    subgraph Scraper["🔍 Scraper"]
+        FETCH[Fetch HTML]
+        PARSE[Parse Headings<br/>h1-h6]
+        EXTRACT[Extract Content<br/>under each heading]
+    end
+
+    subgraph AI["🤖 OpenAI Categorizer"]
+        PROMPT["Send to GPT-4o-mini:<br/><i>'Categorize this section...'</i>"]
+        CATEGORY["Returns category:<br/>Products, About, FAQ, etc."]
+    end
+
+    subgraph Filter["🧹 Cleaner"]
+        REMOVE["Remove boilerplate:<br/>• Related Products<br/>• Footer/Nav<br/>• Copyright"]
+        MINWORDS[Filter by word count]
+    end
+
+    subgraph Output
+        CSV[/"CSV / Excel"/]
+    end
+
+    URL --> FETCH --> PARSE --> EXTRACT
+    EXTRACT --> PROMPT --> CATEGORY
+    CATEGORY --> REMOVE --> MINWORDS --> CSV
+
+    style Input fill:#e1f5fe
+    style Output fill:#e8f5e9
+    style AI fill:#fff3e0
+```
+
+### Data Flow Example
+
+```mermaid
+flowchart TB
+    subgraph "1️⃣ Scraper Output"
+        S1["<b>Section 1</b><br/>Title: 'CPTC 110-1350W'<br/>Content: 'Professional tile cutter...'"]
+        S2["<b>Section 2</b><br/>Title: 'Key Specifications'<br/>Content: 'Power: 1350W, RPM: 12000...'"]
+        S3["<b>Section 3</b><br/>Title: 'Related Products'<br/>Content: 'CB1 Blower, CPAG 22...'"]
+        S4["<b>Section 4</b><br/>Title: 'Copyright'<br/>Content: '© 2026 All Rights Reserved'"]
+    end
+
+    subgraph "2️⃣ After AI Categorization"
+        C1["✅ Products/Services"]
+        C2["✅ Products/Services"]
+        C3["⚠️ Navigation/Menu"]
+        C4["⚠️ Legal/Terms"]
+    end
+
+    subgraph "3️⃣ After Filtering"
+        F1["✅ CPTC 110-1350W<br/><i>Products/Services</i>"]
+        F2["✅ Key Specifications<br/><i>Products/Services</i>"]
+        F3["❌ Filtered out"]
+        F4["❌ Filtered out"]
+    end
+
+    S1 --> C1 --> F1
+    S2 --> C2 --> F2
+    S3 --> C3 --> F3
+    S4 --> C4 --> F4
+
+    style F1 fill:#c8e6c9
+    style F2 fill:#c8e6c9
+    style F3 fill:#ffcdd2
+    style F4 fill:#ffcdd2
+```
+
 ## Features
 
 - **Web Interface** - Easy-to-use Streamlit UI for scraping websites
