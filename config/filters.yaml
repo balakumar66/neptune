@@ -78,6 +78,11 @@ boilerplate_phrases:
   - "Scroll to top"
   - "Skip to content"
   - "Skip to main content"
+  # Website builder artifacts (Wix, Squarespace, etc.)
+  - "/\\$[^$]*\\$"
+  - "Anchor \\d+"
+  - "\\$w\\s*\\."
+  - "\\$\\s*\\$"
   - "Accept cookies"
   - "We use cookies"
   - "This website uses cookies"
