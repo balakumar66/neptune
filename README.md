@@ -169,7 +169,7 @@ The exported CSV/Excel contains:
 | `row_no` | Row number for reference |
 | `url` | Source URL |
 | `page_title` | Page title from `<title>` tag |
-| `meta_description` | Meta description |
+| `description` | Page meta description |
 | `section_title` | Heading text |
 | `section_level` | Heading level (h1-h6) |
 | `content` | Text content under that section |

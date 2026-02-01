@@ -168,7 +168,8 @@ class WebScraper:
                     if sib_level <= heading_level:
                         break
                 
-                text = sibling.get_text(separator=' ', strip=True)
+                # Use pipe separator to preserve structure in tables/spec lists
+                text = sibling.get_text(separator=' | ', strip=True)
                 if text:
                     content_parts.append(text)
         
@@ -197,7 +198,8 @@ class WebScraper:
                         if has_boundary:
                             break
                     
-                    text = parent_sibling.get_text(separator=' ', strip=True)
+                    # Use pipe separator to preserve structure
+                    text = parent_sibling.get_text(separator=' | ', strip=True)
                     if text:
                         content_parts.append(text)
             
@@ -224,7 +226,8 @@ class WebScraper:
                             if has_boundary:
                                 break
                         
-                        text = gp_sibling.get_text(separator=' ', strip=True)
+                        # Use pipe separator to preserve structure
+                        text = gp_sibling.get_text(separator=' | ', strip=True)
                         if text:
                             content_parts.append(text)
         

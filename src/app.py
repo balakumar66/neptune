@@ -71,7 +71,7 @@ def sections_to_dataframe(sections: list) -> pd.DataFrame:
         data.append({
             'url': section.url,
             'page_title': getattr(section, 'page_title', '') or '',
-            'meta_description': getattr(section, 'meta_description', '') or '',
+            'description': getattr(section, 'meta_description', '') or '',
             'canonical_url': getattr(section, 'canonical_url', '') or '',
             'section_title': section.section_title,
             'section_level': section.section_level,
