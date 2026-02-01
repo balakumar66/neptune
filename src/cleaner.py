@@ -2,92 +2,115 @@
 Data cleaning and filtering module for Neptune.
 
 Implements filtering logic to optimize scraped data for AI analysis.
+Configuration is loaded from config/filters.yaml for easy customization.
 """
 
 import re
+import os
 import pandas as pd
-from typing import List, Set
+from typing import List, Set, Dict, Any
+from pathlib import Path
 import logging
 
 logger = logging.getLogger(__name__)
 
+# Try to import yaml, fall back to defaults if not available
+try:
+    import yaml
+    YAML_AVAILABLE = True
+except ImportError:
+    YAML_AVAILABLE = False
+    logger.warning("PyYAML not installed. Using default filter configuration.")
 
-# Categories to exclude from output
-EXCLUDED_CATEGORIES = {
-    "Legal/Terms/Privacy",
-    "Contact Information", 
-    "Navigation/Menu",
-    "Other"
-}
 
-# Keywords that indicate boilerplate content (case-insensitive)
-BOILERPLATE_KEYWORDS = [
-    "copyright",
-    "all rights reserved",
-    "developed by",
-    "w3 total cache",
-    "terms & conditions",
-    "terms and conditions",
-    "subscribe",
-    "newsletter",
-    "email address",
-    "cookie policy",
-    "privacy policy",
-    "powered by",
-    "built with",
-    "website by",
-    "designed by"
-]
+def load_filter_config() -> Dict[str, Any]:
+    """
+    Load filter configuration from YAML file.
+    Falls back to defaults if file not found or yaml not available.
+    
+    Returns:
+        Configuration dictionary
+    """
+    defaults = {
+        'min_word_count': 5,
+        'excluded_categories': [
+            "Legal/Terms/Privacy",
+            "Contact Information",
+            "Navigation/Menu",
+            "Other"
+        ],
+        'excluded_section_titles': [
+            "related products",
+            "you may also like",
+            "customers also bought",
+            "similar products",
+            "recently viewed",
+            "recommended for you",
+            "footer",
+            "sitemap"
+        ],
+        'boilerplate_keywords': [
+            "copyright",
+            "all rights reserved",
+            "privacy policy",
+            "terms and conditions"
+        ],
+        'boilerplate_phrases': [
+            r"Loading\.\.\.",
+            r"Click here",
+            r"Read more"
+        ]
+    }
+    
+    if not YAML_AVAILABLE:
+        return defaults
+    
+    # Look for config file in multiple locations
+    config_paths = [
+        Path(__file__).parent.parent / 'config' / 'filters.yaml',
+        Path(__file__).parent / 'config' / 'filters.yaml',
+        Path('config/filters.yaml'),
+        Path('filters.yaml'),
+    ]
+    
+    for config_path in config_paths:
+        if config_path.exists():
+            try:
+                with open(config_path, 'r') as f:
+                    config = yaml.safe_load(f)
+                    logger.info(f"Loaded filter config from {config_path}")
+                    # Merge with defaults for any missing keys
+                    for key, value in defaults.items():
+                        if key not in config:
+                            config[key] = value
+                    return config
+            except Exception as e:
+                logger.warning(f"Failed to load config from {config_path}: {e}")
+    
+    logger.info("Using default filter configuration")
+    return defaults
 
-# Section titles to exclude (e-commerce and common boilerplate sections)
-EXCLUDED_SECTION_TITLES = [
-    "related products",
-    "you may also like",
-    "customers also bought",
-    "similar products",
-    "recently viewed",
-    "recommended for you",
-    "people also viewed",
-    "best sellers",
-    "top rated",
-    "featured products",
-    "more from this category",
-    "compare products",
-    "add to cart",
-    "add to wishlist",
-    "share this",
-    "follow us",
-    "social media",
-    "get in touch",
-    "important links",
-    "quick links",
-    "useful links",
-    "footer",
-    "site map",
-    "sitemap",
-]
 
-# Common boilerplate phrases to strip from content
-BOILERPLATE_PHRASES = [
-    r"Loading\.\.\.",
-    r"Please wait\.\.\.",
-    r"Click here",
-    r"Read more",
-    r"Learn more",
-    r"View all",
-    r"See more",
-    r"Show more",
-    r"Back to top",
-    r"Scroll to top",
-    r"Skip to content",
-    r"Skip to main content",
-    r"Accept cookies",
-    r"We use cookies",
-    r"This website uses cookies",
-]
+# Load configuration
+_config = load_filter_config()
 
-# Minimum word count threshold
-MIN_WORD_COUNT = 5
+# Export configuration values for use in module
+EXCLUDED_CATEGORIES = set(_config.get('excluded_categories', []))
+BOILERPLATE_KEYWORDS = _config.get('boilerplate_keywords', [])
+EXCLUDED_SECTION_TITLES = _config.get('excluded_section_titles', [])
+BOILERPLATE_PHRASES = _config.get('boilerplate_phrases', [])
+MIN_WORD_COUNT = _config.get('min_word_count', 5)
+
+
+def reload_config():
+    """Reload configuration from file. Useful for testing or runtime updates."""
+    global _config, EXCLUDED_CATEGORIES, BOILERPLATE_KEYWORDS, EXCLUDED_SECTION_TITLES, BOILERPLATE_PHRASES, MIN_WORD_COUNT
+    _config = load_filter_config()
+    EXCLUDED_CATEGORIES = set(_config.get('excluded_categories', []))
+    BOILERPLATE_KEYWORDS = _config.get('boilerplate_keywords', [])
+    EXCLUDED_SECTION_TITLES = _config.get('excluded_section_titles', [])
+    BOILERPLATE_PHRASES = _config.get('boilerplate_phrases', [])
+    MIN_WORD_COUNT = _config.get('min_word_count', 5)
 
 
 def clean_text(text: str) -> str:

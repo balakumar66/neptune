@@ -1,0 +1,83 @@
+# Neptune Filter Configuration
+# Edit this file to customize what content gets filtered out
+
+# Minimum number of words required for a section to be included
+min_word_count: 5
+
+# AI categories to exclude from results
+excluded_categories:
+  - "Legal/Terms/Privacy"
+  - "Contact Information"
+  - "Navigation/Menu"
+  - "Other"
+
+# Section titles to exclude (case-insensitive, partial match)
+# Common e-commerce and boilerplate sections
+excluded_section_titles:
+  # E-commerce related products
+  - "related products"
+  - "you may also like"
+  - "customers also bought"
+  - "similar products"
+  - "recently viewed"
+  - "recommended for you"
+  - "people also viewed"
+  - "best sellers"
+  - "top rated"
+  - "featured products"
+  - "more from this category"
+  - "compare products"
+  
+  # E-commerce actions
+  - "add to cart"
+  - "add to wishlist"
+  
+  # Social/sharing
+  - "share this"
+  - "follow us"
+  - "social media"
+  
+  # Footer/navigation
+  - "get in touch"
+  - "important links"
+  - "quick links"
+  - "useful links"
+  - "footer"
+  - "site map"
+  - "sitemap"
+
+# Keywords in title or content that indicate boilerplate (case-insensitive)
+boilerplate_keywords:
+  - "copyright"
+  - "all rights reserved"
+  - "developed by"
+  - "w3 total cache"
+  - "terms & conditions"
+  - "terms and conditions"
+  - "subscribe"
+  - "newsletter"
+  - "email address"
+  - "cookie policy"
+  - "privacy policy"
+  - "powered by"
+  - "built with"
+  - "website by"
+  - "designed by"
+
+# Phrases to strip from content (regex patterns)
+boilerplate_phrases:
+  - "Loading\\.\\.\\."
+  - "Please wait\\.\\.\\."
+  - "Click here"
+  - "Read more"
+  - "Learn more"
+  - "View all"
+  - "See more"
+  - "Show more"
+  - "Back to top"
+  - "Scroll to top"
+  - "Skip to content"
+  - "Skip to main content"
+  - "Accept cookies"
+  - "We use cookies"
+  - "This website uses cookies"
