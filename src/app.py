@@ -106,31 +106,14 @@ def main():
     )
     
     # Options
-    col1, col2 = st.columns(2)
-    with col1:
-        enable_ai = st.checkbox(
-            "Enable AI Categorization",
-            value=True,
-            help="Use AI to categorize sections into common themes like 'Products', 'About', 'Contact', etc."
-        )
-    with col2:
-        delay = st.slider(
-            "Delay between requests (seconds)",
-            min_value=0.5,
-            max_value=5.0,
-            value=1.0,
-            step=0.5,
-            help="Be respectful to servers by adding delay between requests"
-        )
+    enable_ai = True  # Always enabled
+    delay = 1.0  # Default delay
     
-    # Additional options
-    col3, col4 = st.columns(2)
-    with col3:
-        enable_filtering = st.checkbox(
-            "Enable Data Cleaning & Filtering",
-            value=True,
-            help="Remove boilerplate, low-value content, and optimize for AI analysis"
-        )
+    enable_filtering = st.checkbox(
+        "Enable Data Cleaning & Filtering",
+        value=True,
+        help="Remove boilerplate, low-value content, and optimize for AI analysis"
+    )
     
     # Parse and validate URLs
     urls_raw = [line.strip() for line in url_input.strip().split('\n') if line.strip()]
@@ -246,15 +229,8 @@ def main():
                 else:
                     st.metric("Total Sections", len(df))
             with col4:
-                if enable_ai:
-                    unique_categories = df['ai_category'].nunique()
-                    st.metric("Categories Found", unique_categories)
-            
-            # Category breakdown
-            if enable_ai and 'ai_category' in df.columns:
-                st.markdown("#### 📊 Sections by Category")
-                category_counts = df['ai_category'].value_counts()
-                st.bar_chart(category_counts)
+                unique_categories = df['ai_category'].nunique()
+                st.metric("Categories Found", unique_categories)
             
             # Data preview
             st.markdown("#### 📄 Data Preview")
